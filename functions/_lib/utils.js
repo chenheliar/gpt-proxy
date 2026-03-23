@@ -1,31 +1,32 @@
 const encoder = new TextEncoder();
 const PBKDF2_ITERATIONS = 100000;
+const DISALLOWED_HOST_SUFFIXES = [".local", ".internal", ".localhost", ".home.arpa"];
 
 export function json(data, init = {}) {
   return new Response(JSON.stringify(data, null, 2), {
     ...init,
-    headers: {
+    headers: withSecurityHeaders({
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       ...(init.headers || {}),
-    },
+    }),
   });
 }
 
 export function text(body, init = {}) {
   return new Response(body, {
     ...init,
-    headers: {
+    headers: withSecurityHeaders({
       "content-type": "text/plain; charset=utf-8",
       ...(init.headers || {}),
-    },
+    }),
   });
 }
 
 export function noContent(headers = {}) {
   return new Response(null, {
     status: 204,
-    headers,
+    headers: withSecurityHeaders(headers),
   });
 }
 
@@ -58,6 +59,7 @@ export function normalizeTargetBase(value) {
     url.pathname = url.pathname.slice(0, -1);
   }
   url.hash = "";
+  validatePublicUpstreamHost(url);
   return url.toString();
 }
 
@@ -211,13 +213,34 @@ export function joinPaths(basePath, appendPath) {
 }
 
 export function withCors(headers = {}) {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "*",
-    "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-expose-headers": "*",
-    ...headers,
-  };
+  const [request, inputHeaders = {}, options = {}] =
+    headers instanceof Request
+      ? [headers, arguments[1] || {}, arguments[2] || {}]
+      : [null, headers || {}, arguments[1] || {}];
+
+  const next = new Headers(withSecurityHeaders(inputHeaders));
+  const origin = request?.headers?.get("origin");
+
+  if (!origin) {
+    return Object.fromEntries(next.entries());
+  }
+
+  const currentOrigin = new URL(request.url).origin;
+  const allowedOrigins = new Set([currentOrigin, ...(options.allowedOrigins || [])]);
+
+  if (options.allowAnyOrigin === true) {
+    next.set("access-control-allow-origin", "*");
+  } else if (allowedOrigins.has(origin)) {
+    next.set("access-control-allow-origin", origin);
+    next.set("vary", appendVary(next.get("vary"), "Origin"));
+  } else {
+    return Object.fromEntries(next.entries());
+  }
+
+  next.set("access-control-allow-headers", "Content-Type");
+  next.set("access-control-allow-methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
+  next.set("access-control-expose-headers", "Content-Type, Cache-Control, X-Gateway-Route");
+  return Object.fromEntries(next.entries());
 }
 
 export function isRouteMatch(pathname, mountPath) {
@@ -249,4 +272,70 @@ function bytesToHex(bytes) {
 function base64Url(bytes) {
   const raw = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
   return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+export function withSecurityHeaders(headers = {}) {
+  const next = new Headers(headers);
+  if (!next.has("x-content-type-options")) next.set("x-content-type-options", "nosniff");
+  if (!next.has("referrer-policy")) next.set("referrer-policy", "same-origin");
+  if (!next.has("x-frame-options")) next.set("x-frame-options", "DENY");
+  if (!next.has("permissions-policy")) {
+    next.set(
+      "permissions-policy",
+      "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+    );
+  }
+  return Object.fromEntries(next.entries());
+}
+
+function appendVary(current, value) {
+  if (!current) return value;
+  const parts = current
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!parts.includes(value)) parts.push(value);
+  return parts.join(", ");
+}
+
+function validatePublicUpstreamHost(url) {
+  const hostname = url.hostname.toLowerCase();
+  if (!hostname) {
+    throw new Error("Upstream hostname is missing.");
+  }
+
+  if (hostname === "localhost" || DISALLOWED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) {
+    throw new Error("Local or internal upstream addresses are not allowed.");
+  }
+
+  if (isPrivateIpv4(hostname) || isPrivateIpv6(hostname)) {
+    throw new Error("Private or loopback upstream addresses are not allowed.");
+  }
+}
+
+function isPrivateIpv4(hostname) {
+  const match = hostname.match(/^(\d{1,3})(?:\.(\d{1,3})){3}$/);
+  if (!match) return false;
+  const octets = hostname.split(".").map(Number);
+  if (octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > 255)) return true;
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function isPrivateIpv6(hostname) {
+  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!normalized.includes(":")) return false;
+  return (
+    normalized === "::1" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:")
+  );
 }

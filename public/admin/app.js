@@ -3,6 +3,7 @@ const RESERVED_PATHS = ["/admin", "/api", "/functions", "/assets", "/favicon.ico
 
 const state = {
   initialized: false,
+  setupTokenConfigured: true,
   session: null,
   routes: [],
   editingId: null,
@@ -182,11 +183,16 @@ async function bootstrap() {
   try {
     const data = await api("/api/public/bootstrap");
     state.initialized = data.initialized;
+    state.setupTokenConfigured = data.setupTokenConfigured !== false;
     state.session = data.session;
 
     if (!state.initialized) {
-  renderSetup();
-  return;
+      if (!state.setupTokenConfigured) {
+        renderFatalState("首次初始化已被保护。请先在 Cloudflare Pages 环境变量中配置 ADMIN_SETUP_TOKEN，再刷新页面继续。");
+        return;
+      }
+      renderSetup();
+      return;
     }
 
     if (!state.session) {
@@ -227,6 +233,17 @@ function renderSetup() {
       <p class="muted">当前还没有管理员账户。完成首次创建后，你就可以进入完整后台继续管理。</p>
       <form id="setup-form" class="auth-form" novalidate>
         <label>
+          <span>初始化令牌</span>
+          <input
+            name="setupToken"
+            type="password"
+            autocomplete="one-time-code"
+            maxlength="128"
+            placeholder="请输入 ADMIN_SETUP_TOKEN"
+            required
+          />
+        </label>
+        <label>
           <span>管理员用户名</span>
           <input
             name="username"
@@ -249,7 +266,7 @@ function renderSetup() {
             required
           />
         </label>
-        <p class="helper-text">用户名支持字母、数字、点、下划线和短横线；密码至少 10 位。</p>
+        <p class="helper-text">请输入部署时配置的初始化令牌；用户名支持字母、数字、点、下划线和短横线；密码至少 10 位。</p>
         <button class="button primary" type="submit" data-auth-submit>创建并登录</button>
       </form>
     </div>

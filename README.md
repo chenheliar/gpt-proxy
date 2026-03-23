@@ -181,7 +181,8 @@ https://generativelanguage.googleapis.com/v1beta/models
    - Binding name：`DB`
 7. 打开 `migrations/0001_init.sql`
 8. 把 SQL 内容复制到 Cloudflare D1 控制台执行一次
-9. 重新部署 Pages
+9. 在 Pages 环境变量中添加 `ADMIN_SETUP_TOKEN`
+10. 重新部署 Pages
 
 完成后，访问 `/admin` 初始化第一个管理员账户即可。
 
@@ -214,6 +215,7 @@ npm run setup -- --project my-gateway --skip-deploy
 4. 执行本地迁移
 5. 执行远端迁移
 6. 首次部署到 Cloudflare Pages
+7. 后续通过 `ADMIN_SETUP_TOKEN` 完成首次管理员初始化
 
 脚本文件在：
 
@@ -248,7 +250,8 @@ npm run deploy -- --project-name my-gateway
 ## 项目结构
 
 ```text
-admin/                    后台页面与前端脚本
+public/                   静态资源输出目录
+public/admin/             后台页面与前端脚本
 functions/                Pages Functions 入口
 functions/_lib/           代理、鉴权、D1、工具函数
 migrations/               D1 迁移文件
@@ -262,8 +265,8 @@ package.json
 - `functions/[[path]].js`：Pages Functions 主入口
 - `functions/_lib/proxy.js`：代理逻辑与协议补丁
 - `functions/_lib/auth.js`：管理员认证与会话
-- `admin/index.html`：后台页面
-- `admin/app.js`：后台交互逻辑
+- `public/admin/index.html`：后台页面
+- `public/admin/app.js`：后台交互逻辑
 - `migrations/0001_init.sql`：数据库初始化
 
 ## 安全边界与限制

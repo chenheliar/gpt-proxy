@@ -8,7 +8,17 @@ import {
 } from "./_lib/db.js";
 import { getCurrentSession, login, logout, requireAuth, setupInitialAdmin } from "./_lib/auth.js";
 import { maybeHandleProxy } from "./_lib/proxy.js";
-import { json, noContent, readJson, sanitizeRouteInput, withCors } from "./_lib/utils.js";
+import { json, noContent, readJson, sanitizeRouteInput, text, withCors } from "./_lib/utils.js";
+
+const SENSITIVE_STATIC_PATHS = new Set([
+  "/wrangler.toml",
+  "/package.json",
+  "/package-lock.json",
+  "/readme.md",
+  "/.gitignore",
+]);
+const SENSITIVE_STATIC_PREFIXES = ["/migrations/", "/scripts/", "/.github/", "/functions/"];
+const SETUP_TOKEN_ENV = "ADMIN_SETUP_TOKEN";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -22,6 +32,10 @@ export async function onRequest(context) {
     return handleApi(context);
   }
 
+  if (isBlockedStaticPath(url.pathname)) {
+    return text("Not found.", { status: 404 });
+  }
+
   const proxyResponse = await maybeHandleProxy(context);
   if (proxyResponse) return proxyResponse;
 
@@ -30,11 +44,6 @@ export async function onRequest(context) {
     if (assetResponse.status !== 404) {
       return assetResponse;
     }
-  }
-
-  if (request.method === "GET" || request.method === "HEAD") {
-    const fallback = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
-    if (fallback.status !== 404) return fallback;
   }
 
   return json(
@@ -52,7 +61,7 @@ async function handleApi(context) {
   const method = request.method.toUpperCase();
 
   if (method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: withCors() });
+    return new Response(null, { status: 204, headers: withCors(request) });
   }
 
   try {
@@ -76,14 +85,16 @@ async function handleApi(context) {
             totalRoutes: routes.length,
             enabledRoutes: routes.filter((route) => route.enabled).length,
           },
+          setupTokenConfigured: initialized ? true : Boolean(env[SETUP_TOKEN_ENV]),
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
     if (url.pathname === "/api/auth/setup" && method === "POST") {
       await requireSameOrigin(request);
       const body = await readJson(request);
+      requireSetupToken(env, body?.setupToken);
       const result = await setupInitialAdmin(env.DB, request, body?.username, body?.password);
       return json(
         {
@@ -94,7 +105,7 @@ async function handleApi(context) {
         {
           status: 201,
           headers: {
-            ...withCors(),
+            ...withCors(request),
             "set-cookie": result.cookie,
           },
         },
@@ -113,7 +124,7 @@ async function handleApi(context) {
         },
         {
           headers: {
-            ...withCors(),
+            ...withCors(request),
             "set-cookie": result.cookie,
           },
         },
@@ -124,7 +135,7 @@ async function handleApi(context) {
       await requireSameOrigin(request);
       const cookie = await logout(env.DB, request);
       return noContent({
-        ...withCors(),
+        ...withCors(request),
         "set-cookie": cookie,
       });
     }
@@ -142,7 +153,7 @@ async function handleApi(context) {
               }
             : null,
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
@@ -162,7 +173,7 @@ async function handleApi(context) {
           },
           routes,
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
@@ -173,7 +184,7 @@ async function handleApi(context) {
           success: true,
           routes: await getRouteList(env.DB),
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
@@ -192,7 +203,7 @@ async function handleApi(context) {
         },
         {
           status: 201,
-          headers: withCors(),
+          headers: withCors(request),
         },
       );
     }
@@ -215,7 +226,7 @@ async function handleApi(context) {
           message: "Route updated.",
           route: updated,
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
@@ -227,7 +238,7 @@ async function handleApi(context) {
         throw new Error("The route you want to delete does not exist.");
       }
       await deleteRoute(env.DB, Number(routeMatch[1]));
-      return noContent(withCors());
+      return noContent(withCors(request));
     }
 
     if (url.pathname === "/api/health" && method === "GET") {
@@ -237,7 +248,7 @@ async function handleApi(context) {
           runtime: "cloudflare-pages",
           time: new Date().toISOString(),
         },
-        { headers: withCors() },
+        { headers: withCors(request) },
       );
     }
 
@@ -248,12 +259,12 @@ async function handleApi(context) {
       },
       {
         status: 404,
-        headers: withCors(),
+        headers: withCors(request),
       },
     );
   } catch (error) {
     const message = error?.message || "Unknown error";
-    const status = message === "UNAUTHORIZED" ? 401 : 400;
+    const status = error?.status || (message === "UNAUTHORIZED" ? 401 : 400);
     return json(
       {
         success: false,
@@ -261,7 +272,7 @@ async function handleApi(context) {
       },
       {
         status,
-        headers: withCors(),
+        headers: withCors(request),
       },
     );
   }
@@ -272,12 +283,34 @@ async function requireSameOrigin(request) {
   if (!origin) return;
   const current = new URL(request.url).origin;
   if (origin !== current) {
-    throw new Error("Cross-origin request rejected.");
+    throw httpError(403, "Cross-origin request rejected.");
   }
 }
 
 function ensureDatabaseBinding(env) {
   if (!env?.DB || typeof env.DB.prepare !== "function") {
-    throw new Error("The D1 database binding named DB is missing from this Pages project.");
+    throw httpError(500, "The D1 database binding named DB is missing from this Pages project.");
   }
+}
+
+function requireSetupToken(env, providedToken) {
+  const expected = `${env?.[SETUP_TOKEN_ENV] || ""}`.trim();
+  if (!expected) {
+    throw httpError(503, `Initial setup is disabled until ${SETUP_TOKEN_ENV} is configured.`);
+  }
+
+  if (`${providedToken || ""}` !== expected) {
+    throw httpError(403, "Invalid setup token.");
+  }
+}
+
+function isBlockedStaticPath(pathname) {
+  const normalized = pathname.toLowerCase();
+  return SENSITIVE_STATIC_PATHS.has(normalized) || SENSITIVE_STATIC_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function httpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
 }

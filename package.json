@@ -5,10 +5,10 @@
   "description": "Cloudflare Pages + D1 personal relay gateway template with admin dashboard.",
   "type": "module",
   "scripts": {
-    "dev": "wrangler pages dev .",
-    "deploy": "wrangler pages deploy .",
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public",
     "setup": "node scripts/setup-template.mjs",
-    "check": "node --check admin/app.js && node --check functions/_lib/auth.js && node --check functions/_lib/db.js && node --check functions/_lib/proxy.js && node --check functions/_lib/utils.js && node --check functions/[[path]].js"
+    "check": "node --check public/admin/app.js && node --check functions/_lib/auth.js && node --check functions/_lib/db.js && node --check functions/_lib/proxy.js && node --check functions/_lib/utils.js && node --check functions/[[path]].js"
   },
   "devDependencies": {
     "wrangler": "^4.12.0"

@@ -47,7 +47,7 @@ run("npx", ["wrangler", "d1", "migrations", "apply", bindings.databaseName || da
 
 if (!skipDeploy) {
   log(`部署到 Cloudflare Pages: ${projectName}`);
-  run("npx", ["wrangler", "pages", "deploy", ".", "--project-name", projectName]);
+  run("npx", ["wrangler", "pages", "deploy", "public", "--project-name", projectName]);
 }
 
 const summary = [

@@ -18,7 +18,7 @@ export async function maybeHandleProxy(context) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: withCors({
+      headers: withCors(request, {
         "x-gateway-route": route.mount_path,
       }),
     });
@@ -38,7 +38,7 @@ export async function maybeHandleProxy(context) {
   } catch (error) {
     return text(`Gateway upstream error: ${error.message || "unknown error"}`, {
       status: 502,
-      headers: withCors(),
+      headers: withCors(request),
     });
   }
 }
@@ -145,7 +145,7 @@ function buildDockerAuthUrl(incomingUrl, route) {
     return null;
   }
 
-  const realm = incomingUrl.searchParams.get(INTERNAL_REALM_PARAM) || defaultDockerRealm(route);
+  const realm = normalizeDockerRealm(incomingUrl.searchParams.get(INTERNAL_REALM_PARAM), route);
   if (!realm) {
     throw new Error("docker auth realm is missing");
   }
@@ -165,9 +165,25 @@ function rewriteDockerAuthenticateHeader(value, route, incomingUrl) {
   return value.replace(/realm="([^"]+)"/i, (_match, realm) => {
     const localRealm = new URL(incomingUrl.origin);
     localRealm.pathname = joinPaths(route.mount_path, INTERNAL_DOCKER_AUTH_PATH);
-    localRealm.searchParams.set(INTERNAL_REALM_PARAM, realm);
+    localRealm.searchParams.set(INTERNAL_REALM_PARAM, normalizeDockerRealm(realm, route));
     return `realm="${localRealm.toString()}"`;
   });
+}
+
+function normalizeDockerRealm(rawRealm, route) {
+  const fallback = defaultDockerRealm(route);
+  if (!fallback) {
+    return null;
+  }
+
+  const expected = new URL(fallback);
+  const realm = new URL(rawRealm || fallback);
+
+  if (realm.protocol !== "https:" || realm.hostname !== expected.hostname) {
+    throw new Error("docker auth realm rejected");
+  }
+
+  return realm.toString();
 }
 
 function shouldRewriteNpmMetadata(route, upstreamResponse, requestMethod) {
