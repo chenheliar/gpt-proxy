@@ -22,15 +22,15 @@ export async function onRequest(context) {
     return handleApi(context);
   }
 
+  const proxyResponse = await maybeHandleProxy(context);
+  if (proxyResponse) return proxyResponse;
+
   if (request.method === "GET" || request.method === "HEAD") {
     const assetResponse = await env.ASSETS.fetch(request);
     if (assetResponse.status !== 404) {
       return assetResponse;
     }
   }
-
-  const proxyResponse = await maybeHandleProxy(context);
-  if (proxyResponse) return proxyResponse;
 
   if (request.method === "GET" || request.method === "HEAD") {
     const fallback = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
