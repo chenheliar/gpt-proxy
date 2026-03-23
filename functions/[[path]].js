@@ -56,6 +56,8 @@ async function handleApi(context) {
   }
 
   try {
+    ensureDatabaseBinding(env);
+
     if (url.pathname === "/api/public/bootstrap" && method === "GET") {
       const initialized = (await getAdminCount(env.DB)) > 0;
       const session = initialized ? await getCurrentSession(env.DB, request) : null;
@@ -271,5 +273,11 @@ async function requireSameOrigin(request) {
   const current = new URL(request.url).origin;
   if (origin !== current) {
     throw new Error("非法来源请求。");
+  }
+}
+
+function ensureDatabaseBinding(env) {
+  if (!env?.DB || typeof env.DB.prepare !== "function") {
+    throw new Error("D1 数据库尚未绑定，请先在 Cloudflare Pages 项目中绑定变量名为 DB 的 D1 数据库。");
   }
 }

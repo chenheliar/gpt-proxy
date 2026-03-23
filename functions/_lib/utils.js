@@ -1,4 +1,5 @@
 const encoder = new TextEncoder();
+const PBKDF2_ITERATIONS = 100000;
 
 export function json(data, init = {}) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -147,7 +148,7 @@ export async function hashPassword(password, salt) {
     {
       name: "PBKDF2",
       salt: encoder.encode(salt),
-      iterations: 120000,
+      iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
     material,

@@ -14,14 +14,16 @@
     <link rel="stylesheet" href="/admin/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#workspace-main">跳到主要内容</a>
+
     <div class="app-shell">
-      <aside class="intro-pane">
+      <aside class="intro-pane" aria-label="系统概览">
         <div class="intro-card">
           <span class="eyebrow">Universal Relay Gateway</span>
           <h1>中转网关管理台</h1>
-          <p>
-            面向个人自用的极简控制中心。你可以在这里创建、编辑、启停和删除 npm、Docker、OpenAI、Gemini
-            等转发规则。
+          <p class="lede">
+            面向个人自用的极简控制中心。你可以在这里创建、编辑、启停和删除
+            npm、Docker、OpenAI、Gemini 等转发规则。
           </p>
           <div class="intro-matrix">
             <div>
@@ -37,30 +39,30 @@
               <strong>账号密码登录</strong>
             </div>
             <div>
-              <span>前缀路由</span>
+              <span>典型前缀</span>
               <strong>/openai · /npm</strong>
             </div>
           </div>
         </div>
       </aside>
 
-      <main class="workspace">
-        <section id="auth-view" class="surface auth-surface"></section>
+      <main id="workspace-main" class="workspace">
+        <section id="auth-view" class="surface auth-surface" aria-live="polite"></section>
 
-        <section id="dashboard-view" class="dashboard hidden">
+        <section id="dashboard-view" class="dashboard hidden" aria-label="后台工作区">
           <header class="surface topbar">
-            <div>
+            <div class="topbar-copy">
               <span class="eyebrow">Admin</span>
               <h2>路由工作台</h2>
-              <p class="subtle">保持你自己的统一入口简洁、稳定、可随时切换。</p>
+              <p class="subtle lede compact">保持你自己的统一入口简洁、稳定、可随时切换。</p>
             </div>
             <div class="topbar-actions">
-              <div class="user-chip" id="session-user">未登录</div>
+              <div class="user-chip" id="session-user" aria-live="polite">未登录</div>
               <button id="logout-button" class="button ghost" type="button">退出登录</button>
             </div>
           </header>
 
-          <section class="stats-grid" id="stats-grid"></section>
+          <section class="stats-grid" id="stats-grid" aria-label="统计概览"></section>
 
           <section class="content-grid">
             <article class="surface form-surface">
@@ -72,39 +74,78 @@
                 <button id="cancel-edit" class="button ghost hidden" type="button">取消编辑</button>
               </div>
 
-              <div class="preset-row">
+              <div class="preset-row" role="toolbar" aria-label="预设路由">
                 <button class="preset" data-preset="openai" type="button">OpenAI</button>
                 <button class="preset" data-preset="gemini" type="button">Gemini</button>
                 <button class="preset" data-preset="npm" type="button">npm</button>
                 <button class="preset" data-preset="docker" type="button">Docker</button>
               </div>
 
-              <form id="route-form" class="route-form">
+              <form id="route-form" class="route-form" novalidate>
                 <input type="hidden" id="route-id" />
+
                 <label>
                   <span>路由名称</span>
-                  <input id="route-name" name="name" placeholder="例如：OpenAI 主通道" required />
+                  <input id="route-name" name="name" maxlength="80" placeholder="例如：OpenAI 主通道" required />
                 </label>
+
                 <label>
                   <span>挂载路径</span>
-                  <input id="route-mountPath" name="mountPath" placeholder="/openai" required />
+                  <input
+                    id="route-mountPath"
+                    name="mountPath"
+                    maxlength="120"
+                    placeholder="/openai"
+                    inputmode="url"
+                    required
+                  />
                 </label>
+
                 <label>
                   <span>目标地址</span>
-                  <input id="route-targetBase" name="targetBase" placeholder="https://api.openai.com" required />
+                  <input
+                    id="route-targetBase"
+                    name="targetBase"
+                    maxlength="200"
+                    placeholder="https://api.openai.com"
+                    inputmode="url"
+                    required
+                  />
                 </label>
+
                 <label>
                   <span>描述</span>
-                  <textarea id="route-description" name="description" rows="3" placeholder="给未来的自己留一点说明。"></textarea>
+                  <textarea
+                    id="route-description"
+                    name="description"
+                    rows="3"
+                    maxlength="300"
+                    placeholder="给未来的自己留一点说明。"
+                  ></textarea>
                 </label>
+
                 <label>
                   <span>注入请求头（JSON 对象）</span>
-                  <textarea id="route-injectHeaders" name="injectHeaders" rows="4" placeholder='{"Authorization":"Bearer sk-..."}'></textarea>
+                  <textarea
+                    id="route-injectHeaders"
+                    name="injectHeaders"
+                    rows="4"
+                    spellcheck="false"
+                    placeholder='{"Authorization":"Bearer sk-..."}'
+                  ></textarea>
                 </label>
+
                 <label>
                   <span>移除请求头（JSON 数组）</span>
-                  <textarea id="route-removeHeaders" name="removeHeaders" rows="3" placeholder='["origin","referer"]'></textarea>
+                  <textarea
+                    id="route-removeHeaders"
+                    name="removeHeaders"
+                    rows="3"
+                    spellcheck="false"
+                    placeholder='["origin","referer"]'
+                  ></textarea>
                 </label>
+
                 <div class="toggle-row">
                   <label class="checkbox">
                     <input id="route-stripPrefix" type="checkbox" checked />
@@ -115,11 +156,18 @@
                     <span>立即启用</span>
                   </label>
                 </div>
+
                 <div class="preview-box">
                   <span>访问预览</span>
                   <code id="route-preview">/openai/v1/chat/completions</code>
                 </div>
-                <button class="button primary" type="submit" id="submit-button">保存路由</button>
+
+                <div class="form-actions">
+                  <button class="button primary" type="submit" id="submit-button">保存路由</button>
+                  <p class="helper-text" id="form-helper">
+                    支持长文本、中文、emoji 和常见特殊字符，保存失败时会保留你已输入的内容。
+                  </p>
+                </div>
               </form>
             </article>
 
@@ -129,16 +177,16 @@
                   <span class="eyebrow">Routes</span>
                   <h3>已配置路由</h3>
                 </div>
-                <div class="small-note">点击卡片即可编辑</div>
+                <div class="small-note">使用下方按钮编辑或删除。</div>
               </div>
-              <div id="routes-list" class="routes-list"></div>
+              <div id="routes-list" class="routes-list" aria-live="polite"></div>
             </article>
           </section>
         </section>
       </main>
     </div>
 
-    <div id="toast" class="toast hidden"></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="/admin/app.js"></script>
   </body>
 </html>
