@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Gateway Admin</title>
     <meta name="robots" content="noindex,nofollow" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -14,176 +14,197 @@
     <link rel="stylesheet" href="/admin/styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#workspace-main">跳到主要内容</a>
+    <a class="skip-link" href="#admin-main">跳到主要内容</a>
 
-    <div class="app-shell">
-      <aside class="intro-pane" aria-label="系统概览">
-        <div class="intro-card">
+    <main id="admin-main" class="shell">
+      <header class="surface hero-panel">
+        <div class="hero-copy">
           <span class="eyebrow">Universal Relay Gateway</span>
-          <h1>中转网关管理台</h1>
-          <p class="lede">
-            面向个人自用的极简控制中心。你可以在这里创建、编辑、启停和删除
-            npm、Docker、OpenAI、Gemini 等转发规则。
+          <h1>路由管理后台</h1>
+          <p class="muted">
+            与首页保持一致的浅色学术风格。你可以在这里登录、查看路由状态、编辑转发表，并在手机上完成日常维护。
           </p>
-          <div class="intro-matrix">
-            <div>
-              <span>部署目标</span>
-              <strong>Cloudflare Pages</strong>
-            </div>
-            <div>
-              <span>数据存储</span>
-              <strong>D1 Database</strong>
-            </div>
-            <div>
-              <span>鉴权方式</span>
-              <strong>账号密码登录</strong>
-            </div>
-            <div>
-              <span>典型前缀</span>
-              <strong>/openai · /npm</strong>
-            </div>
+        </div>
+        <div class="hero-aside">
+          <div class="hero-note">
+            <span>部署环境</span>
+            <strong>Cloudflare Pages + D1</strong>
+          </div>
+          <div class="hero-note">
+            <span>管理入口</span>
+            <strong>/admin</strong>
+          </div>
+          <div class="hero-note">
+            <span>支持协议</span>
+            <strong>OpenAI / Gemini / npm / Docker</strong>
           </div>
         </div>
-      </aside>
+      </header>
 
-      <main id="workspace-main" class="workspace">
-        <section id="auth-view" class="surface auth-surface" aria-live="polite"></section>
+      <section id="auth-view" class="surface auth-surface" aria-live="polite"></section>
 
-        <section id="dashboard-view" class="dashboard hidden" aria-label="后台工作区">
-          <header class="surface topbar">
-            <div class="topbar-copy">
-              <span class="eyebrow">Admin</span>
-              <h2>路由工作台</h2>
-              <p class="subtle lede compact">保持你自己的统一入口简洁、稳定、可随时切换。</p>
+      <section id="dashboard-view" class="dashboard hidden" aria-label="管理后台">
+        <header class="surface toolbar">
+          <div class="toolbar-copy">
+            <span class="eyebrow">Admin</span>
+            <h2>路由总览</h2>
+            <p class="muted">采用表格集中管理；新增和编辑在弹出表单中完成，移动端会自动改成卡片式表格。</p>
+          </div>
+          <div class="toolbar-actions">
+            <div class="user-chip" id="session-user" aria-live="polite">未登录</div>
+            <button id="open-create-button" class="button primary" type="button">添加新路由</button>
+            <button id="logout-button" class="button" type="button">退出登录</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" id="stats-grid" aria-label="统计概览"></section>
+
+        <section class="surface routes-surface">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">Routes</span>
+              <h3>已配置路由</h3>
+              <p class="muted compact">优先展示最关键的信息：挂载路径、目标地址、转发方式、状态与操作。</p>
             </div>
-            <div class="topbar-actions">
-              <div class="user-chip" id="session-user" aria-live="polite">未登录</div>
-              <button id="logout-button" class="button ghost" type="button">退出登录</button>
-            </div>
-          </header>
+            <p class="table-note">长文本会自动换行；手机上会折叠为分段信息块，不会再把页面撑出屏幕。</p>
+          </div>
 
-          <section class="stats-grid" id="stats-grid" aria-label="统计概览"></section>
+          <div id="routes-empty" class="empty-state hidden">
+            <strong>还没有任何路由</strong>
+            <p>可以先从 OpenAI、Gemini、npm 或 Docker 预设开始。</p>
+            <button class="button primary" id="empty-create-button" type="button">现在添加</button>
+          </div>
 
-          <section class="content-grid">
-            <article class="surface form-surface">
-              <div class="section-header">
-                <div>
-                  <span class="eyebrow">Editor</span>
-                  <h3 id="editor-title">添加新路由</h3>
-                </div>
-                <button id="cancel-edit" class="button ghost hidden" type="button">取消编辑</button>
-              </div>
-
-              <div class="preset-row" role="toolbar" aria-label="预设路由">
-                <button class="preset" data-preset="openai" type="button">OpenAI</button>
-                <button class="preset" data-preset="gemini" type="button">Gemini</button>
-                <button class="preset" data-preset="npm" type="button">npm</button>
-                <button class="preset" data-preset="docker" type="button">Docker</button>
-              </div>
-
-              <form id="route-form" class="route-form" novalidate>
-                <input type="hidden" id="route-id" />
-
-                <label>
-                  <span>路由名称</span>
-                  <input id="route-name" name="name" maxlength="80" placeholder="例如：OpenAI 主通道" required />
-                </label>
-
-                <label>
-                  <span>挂载路径</span>
-                  <input
-                    id="route-mountPath"
-                    name="mountPath"
-                    maxlength="120"
-                    placeholder="/openai"
-                    inputmode="url"
-                    required
-                  />
-                </label>
-
-                <label>
-                  <span>目标地址</span>
-                  <input
-                    id="route-targetBase"
-                    name="targetBase"
-                    maxlength="200"
-                    placeholder="https://api.openai.com"
-                    inputmode="url"
-                    required
-                  />
-                </label>
-
-                <label>
-                  <span>描述</span>
-                  <textarea
-                    id="route-description"
-                    name="description"
-                    rows="3"
-                    maxlength="300"
-                    placeholder="给未来的自己留一点说明。"
-                  ></textarea>
-                </label>
-
-                <label>
-                  <span>注入请求头（JSON 对象）</span>
-                  <textarea
-                    id="route-injectHeaders"
-                    name="injectHeaders"
-                    rows="4"
-                    spellcheck="false"
-                    placeholder='{"Authorization":"Bearer sk-..."}'
-                  ></textarea>
-                </label>
-
-                <label>
-                  <span>移除请求头（JSON 数组）</span>
-                  <textarea
-                    id="route-removeHeaders"
-                    name="removeHeaders"
-                    rows="3"
-                    spellcheck="false"
-                    placeholder='["origin","referer"]'
-                  ></textarea>
-                </label>
-
-                <div class="toggle-row">
-                  <label class="checkbox">
-                    <input id="route-stripPrefix" type="checkbox" checked />
-                    <span>转发时去掉挂载路径前缀</span>
-                  </label>
-                  <label class="checkbox">
-                    <input id="route-enabled" type="checkbox" checked />
-                    <span>立即启用</span>
-                  </label>
-                </div>
-
-                <div class="preview-box">
-                  <span>访问预览</span>
-                  <code id="route-preview">/openai/v1/chat/completions</code>
-                </div>
-
-                <div class="form-actions">
-                  <button class="button primary" type="submit" id="submit-button">保存路由</button>
-                  <p class="helper-text" id="form-helper">
-                    支持长文本、中文、emoji 和常见特殊字符，保存失败时会保留你已输入的内容。
-                  </p>
-                </div>
-              </form>
-            </article>
-
-            <article class="surface table-surface">
-              <div class="section-header">
-                <div>
-                  <span class="eyebrow">Routes</span>
-                  <h3>已配置路由</h3>
-                </div>
-                <div class="small-note">使用下方按钮编辑或删除。</div>
-              </div>
-              <div id="routes-list" class="routes-list" aria-live="polite"></div>
-            </article>
-          </section>
+          <div id="table-wrap" class="table-wrap">
+            <table class="routes-table">
+              <thead>
+                <tr>
+                  <th scope="col">挂载路径</th>
+                  <th scope="col">名称与说明</th>
+                  <th scope="col">目标地址</th>
+                  <th scope="col">转发方式</th>
+                  <th scope="col">状态</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody id="routes-table-body"></tbody>
+            </table>
+          </div>
         </section>
-      </main>
+      </section>
+    </main>
+
+    <div id="route-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="surface modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow">Editor</span>
+            <h3 id="modal-title">添加新路由</h3>
+            <p class="muted compact">通过弹出表单集中填写完整配置，避免把主页面挤得过满。</p>
+          </div>
+          <button id="close-modal-button" class="icon-button" type="button" aria-label="关闭弹窗">×</button>
+        </div>
+
+        <div class="preset-row" role="toolbar" aria-label="预设路由">
+          <button class="preset" data-preset="openai" type="button">OpenAI</button>
+          <button class="preset" data-preset="gemini" type="button">Gemini</button>
+          <button class="preset" data-preset="npm" type="button">npm</button>
+          <button class="preset" data-preset="docker" type="button">Docker</button>
+        </div>
+
+        <form id="route-form" class="route-form" novalidate>
+          <input type="hidden" id="route-id" />
+
+          <div class="form-grid">
+            <label>
+              <span>路由名称</span>
+              <input id="route-name" name="name" maxlength="80" placeholder="例如：OpenAI 主通道" required />
+            </label>
+
+            <label>
+              <span>挂载路径</span>
+              <input
+                id="route-mountPath"
+                name="mountPath"
+                maxlength="120"
+                placeholder="/openai"
+                inputmode="url"
+                required
+              />
+            </label>
+
+            <label class="span-2">
+              <span>目标地址</span>
+              <input
+                id="route-targetBase"
+                name="targetBase"
+                maxlength="200"
+                placeholder="https://api.openai.com"
+                inputmode="url"
+                required
+              />
+            </label>
+
+            <label class="span-2">
+              <span>描述</span>
+              <textarea
+                id="route-description"
+                name="description"
+                rows="3"
+                maxlength="300"
+                placeholder="写一点方便你以后维护的说明。"
+              ></textarea>
+            </label>
+
+            <label class="span-2">
+              <span>注入请求头（JSON 对象）</span>
+              <textarea
+                id="route-injectHeaders"
+                name="injectHeaders"
+                rows="4"
+                spellcheck="false"
+                placeholder='{"Authorization":"Bearer sk-..."}'
+              ></textarea>
+            </label>
+
+            <label class="span-2">
+              <span>移除请求头（JSON 数组）</span>
+              <textarea
+                id="route-removeHeaders"
+                name="removeHeaders"
+                rows="3"
+                spellcheck="false"
+                placeholder='["origin","referer"]'
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <label class="checkbox">
+              <input id="route-stripPrefix" type="checkbox" checked />
+              <span>转发时去掉挂载路径前缀</span>
+            </label>
+            <label class="checkbox">
+              <input id="route-enabled" type="checkbox" checked />
+              <span>保存后立即启用</span>
+            </label>
+          </div>
+
+          <div class="preview-box">
+            <span>访问预览</span>
+            <code id="route-preview">/openai/v1/chat/completions</code>
+          </div>
+
+          <div class="modal-actions">
+            <p class="helper-text">支持中文、长路径和较长目标地址；保存失败时会保留你已输入的内容。</p>
+            <div class="action-row">
+              <button id="cancel-modal-button" class="button" type="button">取消</button>
+              <button class="button primary" id="submit-button" type="submit">保存路由</button>
+            </div>
+          </div>
+        </form>
+      </section>
     </div>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>

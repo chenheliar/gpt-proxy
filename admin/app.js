@@ -12,8 +12,8 @@ const presets = {
     mountPath: "/openai",
     targetBase: "https://api.openai.com",
     description: "适合对接 OpenAI REST、SSE 和上传类接口。",
-    injectHeaders: '{\n  "Authorization": "Bearer sk-..."\n}',
-    removeHeaders: '["origin"]',
+    injectHeaders: "{}",
+    removeHeaders: "[]",
     stripPrefix: true,
     enabled: true,
   },
@@ -22,8 +22,8 @@ const presets = {
     mountPath: "/gemini",
     targetBase: "https://generativelanguage.googleapis.com",
     description: "适合转发 Gemini / Generative Language API 请求。",
-    injectHeaders: '{\n  "x-goog-api-key": "YOUR_API_KEY"\n}',
-    removeHeaders: '["origin"]',
+    injectHeaders: "{}",
+    removeHeaders: "[]",
     stripPrefix: true,
     enabled: true,
   },
@@ -43,7 +43,7 @@ const presets = {
     targetBase: "https://registry-1.docker.io",
     description: "适合 Docker Registry HTTP API v2 中转。",
     injectHeaders: "{}",
-    removeHeaders: '["origin"]',
+    removeHeaders: "[]",
     stripPrefix: true,
     enabled: true,
   },
@@ -53,16 +53,22 @@ const authView = document.getElementById("auth-view");
 const dashboardView = document.getElementById("dashboard-view");
 const sessionUser = document.getElementById("session-user");
 const statsGrid = document.getElementById("stats-grid");
-const routesList = document.getElementById("routes-list");
+const routesTableBody = document.getElementById("routes-table-body");
+const routesEmpty = document.getElementById("routes-empty");
+const tableWrap = document.getElementById("table-wrap");
+const routeModal = document.getElementById("route-modal");
+const modalTitle = document.getElementById("modal-title");
 const routeForm = document.getElementById("route-form");
-const editorTitle = document.getElementById("editor-title");
-const cancelEditButton = document.getElementById("cancel-edit");
 const routePreview = document.getElementById("route-preview");
-const toast = document.getElementById("toast");
-const logoutButton = document.getElementById("logout-button");
 const submitButton = document.getElementById("submit-button");
+const openCreateButton = document.getElementById("open-create-button");
+const emptyCreateButton = document.getElementById("empty-create-button");
+const closeModalButton = document.getElementById("close-modal-button");
+const cancelModalButton = document.getElementById("cancel-modal-button");
+const logoutButton = document.getElementById("logout-button");
+const toast = document.getElementById("toast");
 
-init().catch((error) => showToast(error.message || "初始化失败", "error"));
+init().catch((error) => showToast(error.message || "初始化失败。", "error"));
 
 async function init() {
   bindEvents();
@@ -71,8 +77,35 @@ async function init() {
 
 function bindEvents() {
   routeForm.addEventListener("submit", handleRouteSubmit);
-  cancelEditButton.addEventListener("click", resetEditor);
+  openCreateButton.addEventListener("click", openCreateModal);
+  emptyCreateButton.addEventListener("click", openCreateModal);
+  closeModalButton.addEventListener("click", closeModal);
+  cancelModalButton.addEventListener("click", closeModal);
   logoutButton.addEventListener("click", handleLogout);
+
+  routeModal.addEventListener("click", (event) => {
+    if (event.target instanceof HTMLElement && event.target.hasAttribute("data-close-modal")) {
+      closeModal();
+    }
+  });
+
+  routesTableBody.addEventListener("click", async (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-action]") : null;
+    if (!target) return;
+
+    const id = Number(target.dataset.id);
+    const route = state.routes.find((item) => item.id === id);
+    if (!route) return;
+
+    if (target.dataset.action === "edit") {
+      openEditModal(route);
+      return;
+    }
+
+    if (target.dataset.action === "delete") {
+      await deleteRoute(route, target);
+    }
+  });
 
   document.querySelectorAll(".preset").forEach((button) => {
     button.addEventListener("click", () => applyPreset(button.dataset.preset));
@@ -80,6 +113,12 @@ function bindEvents() {
 
   ["route-mountPath", "route-targetBase"].forEach((id) => {
     document.getElementById(id).addEventListener("input", updatePreview);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !routeModal.classList.contains("hidden")) {
+      closeModal();
+    }
   });
 }
 
@@ -112,7 +151,7 @@ function renderFatalState(message) {
     <div class="auth-card">
       <span class="eyebrow">System</span>
       <h2>后台暂时不可用</h2>
-      <p class="subtle">${escapeHtml(message)}</p>
+      <p class="muted">${escapeHtml(message)}</p>
       <button class="button primary" id="retry-bootstrap" type="button">重新加载</button>
     </div>
   `;
@@ -129,7 +168,7 @@ function renderSetup() {
     <div class="auth-card">
       <span class="eyebrow">First Run</span>
       <h2>初始化管理员账户</h2>
-      <p class="subtle">当前 D1 数据库中还没有管理员。创建第一个账号后即可进入完整后台。</p>
+      <p class="muted">当前 D1 数据库中还没有管理员。创建第一个账户后即可进入完整后台。</p>
       <form id="setup-form" class="auth-form">
         <label>
           <span>管理员用户名</span>
@@ -165,12 +204,8 @@ function renderSetup() {
 
     try {
       setBusy(button, true, "创建中...");
-      const form = new FormData(event.currentTarget);
-      const payload = Object.fromEntries(form.entries());
-      const result = await api("/api/auth/setup", {
-        method: "POST",
-        body: payload,
-      });
+      const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const result = await api("/api/auth/setup", { method: "POST", body: payload });
       state.initialized = true;
       state.session = result.session;
       showToast("管理员已创建。", "success");
@@ -190,7 +225,7 @@ function renderLogin() {
     <div class="auth-card">
       <span class="eyebrow">Sign In</span>
       <h2>登录管理后台</h2>
-      <p class="subtle">使用你已经初始化的管理员账户进入后台。</p>
+      <p class="muted">使用已经初始化的管理员账户进入后台。</p>
       <form id="login-form" class="auth-form">
         <label>
           <span>用户名</span>
@@ -224,12 +259,8 @@ function renderLogin() {
 
     try {
       setBusy(button, true, "登录中...");
-      const form = new FormData(event.currentTarget);
-      const payload = Object.fromEntries(form.entries());
-      const result = await api("/api/auth/login", {
-        method: "POST",
-        body: payload,
-      });
+      const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const result = await api("/api/auth/login", { method: "POST", body: payload });
       state.session = result.session;
       showToast("欢迎回来。", "success");
       await loadDashboard();
@@ -251,12 +282,14 @@ async function loadDashboard() {
     sessionUser.textContent = overview.user.username;
     renderStats(overview.stats);
     renderRoutes();
-    resetEditor();
+    closeModal();
   } catch (error) {
     if (error.status === 401) {
       state.session = null;
       renderLogin();
+      return;
     }
+
     showToast(error.message || "加载后台数据失败。", "error");
   }
 }
@@ -271,7 +304,7 @@ function renderStats(stats) {
   statsGrid.innerHTML = items
     .map(
       (item) => `
-        <div class="surface stat-card">
+        <div class="stat-card">
           <span>${item.label}</span>
           <strong>${item.value}</strong>
         </div>
@@ -281,80 +314,83 @@ function renderStats(stats) {
 }
 
 function renderRoutes() {
-  if (!state.routes.length) {
-    routesList.innerHTML = `
-      <div class="route-card route-card-empty">
-        <div class="route-header">
-          <div class="route-path">还没有任何路由</div>
-        </div>
-        <p class="subtle">先从 OpenAI、Gemini、npm 或 Docker 预设开始，或者手动创建一条新规则。</p>
-      </div>
-    `;
+  const hasRoutes = state.routes.length > 0;
+  routesEmpty.classList.toggle("hidden", hasRoutes);
+  tableWrap.classList.toggle("hidden", !hasRoutes);
+
+  if (!hasRoutes) {
+    routesTableBody.innerHTML = "";
     return;
   }
 
-  routesList.innerHTML = state.routes
-    .map(
-      (route) => `
-        <article class="route-card" data-id="${route.id}">
-          <div class="route-header">
-            <div class="route-main">
-              <div class="route-path wrap-text" title="${escapeHtml(route.mount_path)}">${escapeHtml(route.mount_path)}</div>
-              <strong class="route-name wrap-text" title="${escapeHtml(route.name)}">${escapeHtml(route.name)}</strong>
-            </div>
-            <span class="status-pill ${route.enabled ? "enabled" : "disabled"}">${route.enabled ? "已启用" : "已停用"}</span>
-          </div>
-          <p class="route-target wrap-text" title="${escapeHtml(route.target_base)}">${escapeHtml(route.target_base)}</p>
-          <p class="subtle route-description clamp-3">${escapeHtml(route.description || "未填写描述。")}</p>
-          <div class="route-meta">
-            <code>${escapeHtml(route.strip_prefix ? "去前缀：开启" : "去前缀：关闭")}</code>
-            <span class="linkish wrap-text" title="${window.location.origin}${escapeHtml(route.mount_path)}">${window.location.origin}${escapeHtml(route.mount_path)}</span>
-          </div>
-          <div class="route-actions">
-            <button class="button ghost" type="button" data-action="edit" data-id="${route.id}">
-              编辑
-            </button>
-            <button class="button ghost" type="button" data-action="delete" data-id="${route.id}">
-              删除
-            </button>
-          </div>
-        </article>
-      `,
-    )
+  routesTableBody.innerHTML = state.routes
+    .map((route) => renderRouteRow(route))
     .join("");
-
-  routesList.querySelectorAll("[data-action='edit']").forEach((button) => {
-    button.addEventListener("click", () => {
-      const route = state.routes.find((item) => item.id === Number(button.dataset.id));
-      if (route) populateEditor(route);
-    });
-  });
-
-  routesList.querySelectorAll("[data-action='delete']").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const id = Number(button.dataset.id);
-      const route = state.routes.find((item) => item.id === id);
-      if (!route || !window.confirm(`确定删除路由 ${route.mount_path} 吗？`)) return;
-
-      try {
-        setBusy(button, true, "删除中...");
-        await api(`/api/routes/${id}`, { method: "DELETE" });
-        showToast("路由已删除。", "success");
-        await refreshRoutes();
-        if (state.editingId === id) resetEditor();
-      } catch (error) {
-        showToast(error.message || "删除路由失败。", "error");
-      } finally {
-        setBusy(button, false, "删除");
-      }
-    });
-  });
 }
 
-function populateEditor(route) {
+function renderRouteRow(route) {
+  const mountPath = escapeHtml(route.mount_path);
+  const name = escapeHtml(route.name || "未命名路由");
+  const description = escapeHtml(route.description || "未填写描述。");
+  const targetBase = escapeHtml(route.target_base);
+  const mode = route.strip_prefix ? "去掉前缀" : "保留前缀";
+  const accessUrl = `${window.location.origin}${route.mount_path}`;
+
+  return `
+    <tr>
+      <td data-label="挂载路径">
+        <div class="cell-title">
+          <div class="path-text" title="${mountPath}">${mountPath}</div>
+          <div class="helper-inline url-text" title="${escapeHtml(accessUrl)}">${escapeHtml(accessUrl)}</div>
+        </div>
+      </td>
+      <td data-label="名称与说明">
+        <div class="cell-title">
+          <strong title="${name}">${name}</strong>
+          <div class="helper-inline" title="${description}">${description}</div>
+        </div>
+      </td>
+      <td data-label="目标地址">
+        <div class="endpoint-text" title="${targetBase}">${targetBase}</div>
+      </td>
+      <td data-label="转发方式">
+        <div class="cell-title">
+          <strong>${mode}</strong>
+          <div class="helper-inline">${route.inject_headers && Object.keys(route.inject_headers).length ? "含注入头" : "无注入头"}</div>
+        </div>
+      </td>
+      <td data-label="状态">
+        <span class="status-badge ${route.enabled ? "enabled" : "disabled"}">${route.enabled ? "已启用" : "已停用"}</span>
+      </td>
+      <td data-label="操作">
+        <div class="table-actions">
+          <button class="button" type="button" data-action="edit" data-id="${route.id}">编辑</button>
+          <button class="button" type="button" data-action="delete" data-id="${route.id}">删除</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function openCreateModal() {
+  state.editingId = null;
+  modalTitle.textContent = "添加新路由";
+  routeForm.reset();
+  document.getElementById("route-id").value = "";
+  document.getElementById("route-stripPrefix").checked = true;
+  document.getElementById("route-enabled").checked = true;
+  document.getElementById("route-injectHeaders").value = "{}";
+  document.getElementById("route-removeHeaders").value = "[]";
+  submitButton.textContent = "保存路由";
+  routeForm.removeAttribute("aria-busy");
+  updatePreview();
+  setModalOpen(true);
+  document.getElementById("route-name").focus();
+}
+
+function openEditModal(route) {
   state.editingId = route.id;
-  editorTitle.textContent = `编辑路由 #${route.id}`;
-  cancelEditButton.classList.remove("hidden");
+  modalTitle.textContent = `编辑路由 #${route.id}`;
   document.getElementById("route-id").value = route.id;
   document.getElementById("route-name").value = route.name || "";
   document.getElementById("route-mountPath").value = route.mount_path || "";
@@ -365,28 +401,34 @@ function populateEditor(route) {
   document.getElementById("route-stripPrefix").checked = Boolean(route.strip_prefix);
   document.getElementById("route-enabled").checked = Boolean(route.enabled);
   submitButton.textContent = "更新路由";
+  routeForm.removeAttribute("aria-busy");
   updatePreview();
+  setModalOpen(true);
   document.getElementById("route-name").focus();
 }
 
-function resetEditor() {
-  state.editingId = null;
-  editorTitle.textContent = "添加新路由";
-  cancelEditButton.classList.add("hidden");
-  routeForm.reset();
-  document.getElementById("route-id").value = "";
-  document.getElementById("route-stripPrefix").checked = true;
-  document.getElementById("route-enabled").checked = true;
-  document.getElementById("route-injectHeaders").value = "{}";
-  document.getElementById("route-removeHeaders").value = "[]";
-  submitButton.textContent = "保存路由";
-  routeForm.removeAttribute("aria-busy");
-  updatePreview();
+function closeModal() {
+  setModalOpen(false);
+}
+
+function setModalOpen(open) {
+  routeModal.classList.toggle("hidden", !open);
+  routeModal.setAttribute("aria-hidden", String(!open));
+  document.body.classList.toggle("modal-open", open);
+
+  if (!open) {
+    state.editingId = null;
+  }
 }
 
 function applyPreset(name) {
   const preset = presets[name];
   if (!preset) return;
+
+  if (routeModal.classList.contains("hidden")) {
+    openCreateModal();
+  }
+
   document.getElementById("route-name").value = preset.name;
   document.getElementById("route-mountPath").value = preset.mountPath;
   document.getElementById("route-targetBase").value = preset.targetBase;
@@ -396,7 +438,7 @@ function applyPreset(name) {
   document.getElementById("route-stripPrefix").checked = preset.stripPrefix;
   document.getElementById("route-enabled").checked = preset.enabled;
   updatePreview();
-  showToast(`已填入 ${preset.name} 预设。`, "info");
+  showToast(`已填入 ${preset.name} 预设。`, "success");
 }
 
 async function handleRouteSubmit(event) {
@@ -435,7 +477,7 @@ async function handleRouteSubmit(event) {
     }
 
     await refreshRoutes();
-    resetEditor();
+    closeModal();
   } catch (error) {
     showToast(error.message || "保存路由失败。", "error");
   } finally {
@@ -445,9 +487,26 @@ async function handleRouteSubmit(event) {
   }
 }
 
+async function deleteRoute(route, button) {
+  if (!window.confirm(`确定删除路由 ${route.mount_path} 吗？`)) return;
+
+  try {
+    setBusy(button, true, "删除中...");
+    await api(`/api/routes/${route.id}`, { method: "DELETE" });
+    showToast("路由已删除。", "success");
+    await refreshRoutes();
+  } catch (error) {
+    showToast(error.message || "删除路由失败。", "error");
+  } finally {
+    setBusy(button, false, "删除");
+  }
+}
+
 async function refreshRoutes() {
   const overview = await api("/api/overview");
+  state.session = overview.user;
   state.routes = overview.routes;
+  sessionUser.textContent = overview.user.username;
   renderStats(overview.stats);
   renderRoutes();
 }
@@ -458,6 +517,7 @@ async function handleLogout() {
     await api("/api/auth/logout", { method: "POST" });
     state.session = null;
     state.routes = [];
+    closeModal();
     renderLogin();
     showToast("已退出登录。", "success");
   } catch (error) {
@@ -491,7 +551,7 @@ async function api(url, options = {}) {
     : { success: false, error: await response.text() };
 
   if (!response.ok || !data.success) {
-    const error = new Error(data.error || "请求失败");
+    const error = new Error(data.error || "请求失败。");
     error.status = response.status;
     throw error;
   }
