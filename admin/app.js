@@ -14,8 +14,8 @@ const state = {
 const messages = {
   setupTitle: "初始化管理员账户",
   loginTitle: "登录管理后台",
-  defaultFormHint: "支持中文、日文、韩文、emoji 和长路径；保存失败时会保留你已输入的内容。",
-  offline: "当前网络连接已断开。你仍可查看已渲染内容，但提交和刷新会失败。",
+  defaultFormHint: "支持中文、日文、韩文、emoji 和长路径；如果保存失败，当前已填写的内容会继续保留。",
+  offline: "当前网络已断开。你仍可查看已加载内容，但刷新和提交暂时无法完成。",
   backOnline: "网络已恢复，可以继续操作。",
   loading: "正在加载数据…",
   noDescription: "未填写描述。",
@@ -185,8 +185,8 @@ async function bootstrap() {
     state.session = data.session;
 
     if (!state.initialized) {
-      renderSetup();
-      return;
+  renderSetup();
+  return;
     }
 
     if (!state.session) {
@@ -224,7 +224,7 @@ function renderSetup() {
     <div class="auth-card">
       <span class="eyebrow">First Run</span>
       <h2>${messages.setupTitle}</h2>
-      <p class="muted">当前 D1 数据库中还没有管理员。创建第一个账户后即可进入完整后台。</p>
+      <p class="muted">当前还没有管理员账户。完成首次创建后，你就可以进入完整后台继续管理。</p>
       <form id="setup-form" class="auth-form" novalidate>
         <label>
           <span>管理员用户名</span>
@@ -249,7 +249,7 @@ function renderSetup() {
             required
           />
         </label>
-        <p class="helper-text">用户名支持字母、数字、点、下划线与短横线；密码至少 10 位。</p>
+        <p class="helper-text">用户名支持字母、数字、点、下划线和短横线；密码至少 10 位。</p>
         <button class="button primary" type="submit" data-auth-submit>创建并登录</button>
       </form>
     </div>
@@ -286,7 +286,7 @@ function renderLogin() {
     <div class="auth-card">
       <span class="eyebrow">Sign In</span>
       <h2>${messages.loginTitle}</h2>
-      <p class="muted">使用已经初始化的管理员账户进入后台。</p>
+      <p class="muted">请输入已创建的管理员账户信息，以继续进入后台。</p>
       <form id="login-form" class="auth-form" novalidate>
         <label>
           <span>用户名</span>
@@ -309,7 +309,7 @@ function renderLogin() {
             required
           />
         </label>
-        <p class="helper-text">如果登录状态过期，系统会自动要求重新登录。</p>
+        <p class="helper-text">如果登录状态失效，系统会自动提示你重新登录。</p>
         <button class="button primary" type="submit" data-auth-submit>登录</button>
       </form>
     </div>
@@ -515,7 +515,7 @@ function applyPreset(name) {
   document.getElementById("route-enabled").checked = preset.enabled;
   clearFormState();
   updatePreview();
-  showToast(`已填入 ${preset.name} 预设。`, "success");
+  showToast(`已为你填入“${preset.name}”预设。`, "success");
 }
 
 async function handleRouteSubmit(event) {

@@ -109,10 +109,10 @@
 
       .hero {
         display: grid;
-        grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.92fr);
-        gap: clamp(28px, 5vw, 68px);
+        grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.82fr);
+        gap: clamp(24px, 4vw, 44px);
         align-items: start;
-        padding-block: clamp(20px, 3vw, 36px) clamp(8px, 2vw, 20px);
+        padding-block: clamp(28px, 5vw, 52px) clamp(12px, 2vw, 24px);
       }
 
       .stack {
@@ -122,6 +122,48 @@
 
       .hero-copy {
         gap: clamp(14px, 2.5vw, 22px);
+        max-width: 62ch;
+      }
+
+      .hero-panel {
+        display: grid;
+        gap: clamp(16px, 2.6vw, 22px);
+        align-content: start;
+      }
+
+      .hero-panel-copy {
+        display: grid;
+        gap: 8px;
+      }
+
+      .hero-points {
+        display: grid;
+        gap: 12px;
+      }
+
+      .hero-point {
+        display: grid;
+        gap: 6px;
+        padding: 16px 18px;
+        border-radius: 20px;
+        border: 1px solid color-mix(in oklab, var(--line) 80%, var(--accent));
+        background: color-mix(in oklab, var(--accent-soft) 36%, white);
+      }
+
+      .hero-point span {
+        font-size: var(--text-xs);
+        line-height: 1.3;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .hero-point strong {
+        color: var(--ink);
+        font-size: var(--text-body);
+        line-height: 1.55;
+        font-weight: 600;
       }
 
       h1,
@@ -212,102 +254,8 @@
         padding: clamp(22px, 3vw, 30px);
       }
 
-      .hero-panel {
-        display: grid;
-        gap: clamp(18px, 3vw, 24px);
-      }
-
-      .kpis {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--space-3);
-      }
-
-      .kpi {
-        padding: 18px 18px 16px;
-        border-radius: 22px;
-        border: 1px solid color-mix(in oklab, var(--line) 76%, var(--accent));
-        background: color-mix(in oklab, var(--accent-soft) 44%, white);
-      }
-
-      .kpi span {
-        display: block;
-        font-size: var(--text-xs);
-        font-weight: 600;
-        line-height: 1.35;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--ink-soft);
-      }
-
-      .kpi strong {
-        display: block;
-        margin-top: 10px;
-        font-family: var(--font-sans);
-        font-size: var(--text-title);
-        font-weight: 700;
-        line-height: 1.28;
-        letter-spacing: -0.03em;
-        overflow-wrap: anywhere;
-      }
-
-      .sections {
-        display: grid;
-        gap: clamp(24px, 3.8vw, 34px);
-      }
-
-      .section-head {
-        display: grid;
-        gap: 12px;
-        max-width: 60ch;
-      }
-
-      .cards {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: clamp(16px, 2vw, 22px);
-      }
-
-      .card {
-        padding: clamp(22px, 2.6vw, 28px);
-        display: grid;
-        gap: 16px;
-      }
-
-      .card h2 {
-        font-size: clamp(1.375rem, 2.3vw, 1.9rem);
-      }
-
-      .detail-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .code {
-        padding: 18px 20px;
-        border-radius: 20px;
-        border: 1px solid var(--line);
-        background: color-mix(in oklab, var(--paper-soft) 55%, white);
-        color: var(--ink);
-        font-size: var(--text-sm);
-        line-height: 1.76;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-      }
-
-      .code strong {
-        font-weight: 700;
-      }
-
-      .footer-note {
-        max-width: 58ch;
-        padding-top: var(--space-2);
-      }
-
       @media (max-width: 960px) {
-        .hero,
-        .kpis,
-        .cards {
+        .hero {
           grid-template-columns: 1fr;
         }
 
@@ -348,78 +296,39 @@
     <main class="shell">
       <section class="hero">
         <div class="stack hero-copy">
-          <span class="eyebrow">Personal Relay · Cloudflare Pages · D1</span>
-          <h1>个人自用万能中转网关</h1>
+          <span class="eyebrow">Personal Relay Gateway</span>
+          <h1>个人中转网关</h1>
           <p class="lede">
-            面向个人维护者的统一网络出口。它把 OpenAI、Gemini、npm、Docker Registry 等 HTTP 或流式请求汇聚到一个干净域名，同时提供一个可响应、可登录、可维护的后台。
+            用于统一中转请求，并简化日常管理。
           </p>
           <div class="actions">
             <a class="button primary" href="/admin/">进入管理后台</a>
-            <a class="button" href="https://developers.cloudflare.com/pages/" target="_blank" rel="noreferrer">Cloudflare Pages</a>
+            <a class="button" href="https://github.com/chenheliar" target="_blank" rel="noreferrer">GitHub</a>
           </div>
         </div>
 
-        <aside class="surface panel hero-panel">
-          <div class="section-head">
-            <h2>当前系统能力</h2>
+        <aside class="surface panel hero-panel" aria-label="页面概览">
+          <div class="hero-panel-copy">
+            <span class="eyebrow">Overview</span>
             <p class="muted">
-              适合处理 REST、SSE、上传下载、镜像拉取与包管理等 HTTP 类请求；路由配置与管理员账户均存储在 D1 中。
+              <!-- 只保留必要说明，把更多操作留给后台。 -->
             </p>
           </div>
-          <div class="kpis">
-            <div class="kpi">
-              <span>响应式后台</span>
-              <strong>/admin</strong>
+          <div class="hero-points">
+            <div class="hero-point">
+              <span>统一入口</span>
+              <strong>将常见请求收拢到同一处处理。</strong>
             </div>
-            <div class="kpi">
-              <span>认证方式</span>
-              <strong>账号 + 密码</strong>
+            <div class="hero-point">
+              <span>规则管理</span>
+              <strong>通过后台维护路由与规则。</strong>
             </div>
-            <div class="kpi">
-              <span>存储引擎</span>
-              <strong>D1 Database</strong>
+            <div class="hero-point">
+              <span>日常维护</span>
+              <strong>保持界面简洁，方便随时进入处理。</strong>
             </div>
           </div>
         </aside>
-      </section>
-
-      <section class="sections">
-        <div class="section-head">
-          <h2>推荐挂载方式</h2>
-          <p class="muted">
-            常见服务建议按路径前缀转发。这样你只需要替换基础地址，不需要额外修改原始请求头、请求体和调用方式。
-          </p>
-        </div>
-
-        <div class="cards">
-          <article class="surface card">
-            <h2>模型 API</h2>
-            <p class="muted">
-              OpenAI 与 Gemini 这类模型接口，适合保留客户端原始鉴权与请求结构，只在网关层替换域名和路径前缀。
-            </p>
-            <div class="code">
-              <strong>/openai</strong> → https://api.openai.com
-              <br />
-              <strong>/gemini</strong> → https://generativelanguage.googleapis.com
-            </div>
-          </article>
-
-          <article class="surface card">
-            <h2>包管理与镜像</h2>
-            <p class="muted">
-              npm 与 Docker Registry 也可以按路径映射，这样客户端只需切换到你的网关域名，后续下载与认证仍从网关继续中转。
-            </p>
-            <div class="code">
-              <strong>/npm</strong> → https://registry.npmjs.org
-              <br />
-              <strong>/docker</strong> → https://registry-1.docker.io
-            </div>
-          </article>
-        </div>
-
-        <p class="muted footer-note">
-          如果你已经完成部署，可以直接进入后台添加或调整路由；如果尚未部署，建议先完成 Pages 与 D1 绑定，再初始化管理员账户。
-        </p>
       </section>
     </main>
   </body>

@@ -1,173 +1,304 @@
 # Personal Gateway Pages Template
 
-部署在 **Cloudflare Pages + Pages Functions + D1** 上的个人自用万能中转网关模板。
+这是我写给自己用的一套 **Cloudflare Pages + Pages Functions + D1** 中转网关模板。
 
-它已经包含：
+它的目标很直接：
 
-- 路径前缀式 HTTP / HTTPS 中转
-- `/admin` 可视化后台
-- 账号密码登录
-- D1 持久化存储
-- OpenAI / Gemini / npm / Docker 常用预设
-- 一条命令完成模板初始化
+- 用一个自己的域名统一承接常见 HTTP 请求
+- 在 `/admin` 提供一个可视化后台来维护路由
+- 尽量不改动原始请求，只在网关层做必要的地址改写
+- 让这套东西可以作为 **Pages 项目模板** 反复复用
 
-## 这次升级了什么
+这不是一个面向公开 SaaS 的网关产品，而是一套偏个人维护、偏自用的部署模板。
 
-这份仓库现在已经是可复用的 **Pages 项目模板**：
+## 适合什么场景
 
-- 加入了 `package.json`
-- 加入了 `npm run setup` 初始化脚本
-- 加入了 `.gitignore`
-- 加入了 GitHub Actions 校验工作流
-- 初始化脚本会自动：
-  - 检查 Wrangler 登录状态
-  - 创建 D1 数据库
-  - 回填 `wrangler.toml`
-  - 执行远端数据库迁移
-  - 首次部署到 Cloudflare Pages
+我写这个项目，主要是为了解决这类问题：
 
-## 一键初始化
+- 某些上游服务在部分网络环境下访问不稳定
+- 我希望把多个上游服务统一收口到同一个域名下
+- 我不想每次改配置都去改代码或改反向代理文件
+- 我希望在手机上也能直接管理路由
 
-先安装依赖：
+如果你的需求和上面差不多，这个项目就是为这件事做的。
 
-```bash
-npm install
-```
+## 当前能力
 
-然后直接运行：
+项目已经内置下面这些能力：
 
-```bash
-npm run setup -- --project my-gateway
-```
+- 路径前缀式代理转发
+- `/admin` 可视化管理后台
+- 管理员账户初始化、登录、退出
+- 路由的新增、编辑、删除、启用、停用
+- 路由配置持久化到 D1
+- 请求头注入 / 移除
+- 是否去掉挂载前缀
+- 流式透传，适配 OpenAI / Gemini 这类 streaming 请求
+- npm 元数据中的下载链接自动重写
+- Docker Registry V2 认证 `WWW-Authenticate` realm 自动改写
 
-如果你想自定义数据库名：
+内置预设目前包括：
 
-```bash
-npm run setup -- --project my-gateway --database my-gateway-db
-```
+- OpenAI
+- Gemini
+- npm Registry
+- Docker Hub Registry
 
-如果你只想创建 D1 和写回配置，先不部署：
+## 这套网关的设计原则
 
-```bash
-npm run setup -- --project my-gateway --skip-deploy
-```
+这个项目有一个很重要的原则：
 
-## 运行结果
+**尽量只改“请求地址”，不动原始请求本身。**
 
-`npm run setup` 会完成这些动作：
-
-1. 执行 `wrangler whoami`
-2. 执行 `wrangler d1 create`
-3. 自动把真实 `database_name` 和 `database_id` 写回 [wrangler.toml](D:\web\gpt-proxy\wrangler.toml)
-4. 执行 [migrations/0001_init.sql](D:\web\gpt-proxy\migrations\0001_init.sql) 的本地迁移
-5. 执行远端迁移
-6. 执行 `wrangler pages deploy . --project-name <你的项目名>`
-
-## 本地开发
-
-```bash
-npm run dev
-```
-
-本地语法检查：
-
-```bash
-npm run check
-```
-
-后续手动部署：
-
-```bash
-npm run deploy -- --project-name my-gateway
-```
-
-## 模板结构
+这也是我后面把 OpenAI / Gemini 预设调整成“仅改 base URL”的原因。  
+例如：
 
 ```text
-admin/                   管理后台页面
-functions/               Pages Functions API 与代理入口
-functions/_lib/          鉴权、代理、D1 工具函数
-migrations/              D1 迁移
-scripts/setup-template.mjs
-.github/workflows/validate.yml
-wrangler.toml
-package.json
+https://generativelanguage.googleapis.com/v1beta/models/...
+↓
+https://your-domain.example/gemini/v1beta/models/...
 ```
 
-## 后台能力
+除了域名和挂载前缀发生变化，其他内容尽量保持不变：
 
-后台路径是 `/admin`，支持：
+- 原始请求方法不变
+- 原始请求头尽量保留
+- 原始请求体不变
+- 流式响应直接透传
 
-- 初始化首个管理员
-- 登录 / 退出登录
-- 添加路由
-- 编辑路由
-- 删除路由
-- 启用 / 停用路由
-- 设置注入请求头
-- 设置移除请求头
-- 设置是否去掉挂载路径前缀
+如果你确实需要额外处理请求头，也可以在后台里单独配置。
 
-## 路由示例
+## 一些已经补过的协议细节
 
-如果配置：
+除了普通 HTTP 代理之外，项目里还补了几处更偏“可用性”的逻辑：
 
-- 挂载路径：`/openai`
-- 目标地址：`https://api.openai.com`
+### 1. Streaming 透传
+
+对 OpenAI / Gemini 这类返回流式数据的接口，网关不会先把响应读完再回给客户端，而是直接透传上游响应流。
+
+### 2. npm 链接自动修复
+
+npm registry 返回的元数据里通常会带上包 tarball 的完整下载地址。  
+如果这些地址仍然指向官方域名，客户端后续下载就会绕开网关。
+
+这里已经做了自动重写：当上游是 `registry.npmjs.org` 时，元数据里的相关 URL 会改回你自己的网关域名。
+
+### 3. Docker V2 认证重定向修复
+
+Docker Registry V2 的认证流程里，服务端会通过 `WWW-Authenticate` 返回一个 `realm`。  
+如果不处理，Docker 客户端会直接跳回官方认证域名。
+
+这里已经做了两层处理：
+
+- 把返回头里的 `realm` 改写成网关内部地址
+- 由网关再去请求真实认证地址
+
+这样 Docker 客户端看到的认证入口仍然是你的域名。
+
+## 后台里一条路由的含义
+
+后台维护的每条路由，本质上对应下面几个字段：
+
+- `name`：路由名称
+- `mount_path`：挂载路径，例如 `/openai`
+- `target_base`：目标上游地址，例如 `https://api.openai.com`
+- `strip_prefix`：转发时是否去掉挂载前缀
+- `inject_headers`：额外注入的请求头
+- `remove_headers`：需要移除的请求头
+- `enabled`：是否启用
+
+一个最简单的例子：
+
+- 挂载路径：`/gemini`
+- 目标地址：`https://generativelanguage.googleapis.com`
 - 去前缀：开启
 
 那么：
 
 ```text
-https://your-domain.com/openai/v1/chat/completions
-=> https://api.openai.com/v1/chat/completions
+https://your-domain.example/gemini/v1beta/models
 ```
 
-## 当前适用范围
+会被转发到：
 
-这套模板适合：
+```text
+https://generativelanguage.googleapis.com/v1beta/models
+```
 
-- OpenAI API
-- Gemini API
-- npm registry
-- Docker Registry HTTP API
-- 其他 REST / SSE / 上传下载 / 包管理镜像类 HTTP 服务
+## 管理后台
 
-这套模板不适合：
+后台路径固定是：
 
-- 原始 TCP
-- UDP
-- 非 HTTP 协议直通
+```text
+/admin
+```
 
-如果你未来要做真正“全协议”网关，需要改为 Cloudflare Workers 其他形态，或者换 Tunnel / VPS / 反向代理方案。
+后台目前支持：
 
-## 关于“Deploy to Cloudflare”按钮
+- 首次初始化管理员
+- 登录 / 退出
+- 查看路由统计
+- 表格式管理路由
+- 弹窗创建 / 编辑路由
+- 移动端响应式管理
 
-我帮你核对了 Cloudflare 官方文档。当前官方的 **Deploy to Cloudflare** 按钮是给 **Workers** 用的，不是给 **Pages** 用的。
+账户、会话、路由数据都存放在 D1 里。
 
-官方文档：
+## 数据库结构
 
-- Deploy buttons: [developers.cloudflare.com/workers/platform/deploy-buttons/](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
-- Pages Wrangler configuration: [developers.cloudflare.com/pages/functions/wrangler-configuration/](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
-- Pages API reference: [developers.cloudflare.com/pages/functions/api-reference/](https://developers.cloudflare.com/pages/functions/api-reference/)
+当前迁移文件是：
 
-所以这份仓库采用的是更适合 Pages 的“模板仓库 + 单命令初始化部署”方案，而不是伪造一个实际上不可用的按钮。
+- `migrations/0001_init.sql`
 
-## 关键文件
+里面会创建三张表：
 
-- Pages 入口与 API：[functions/[[path]].js](D:\web\gpt-proxy\functions\[[path]].js)
-- 代理逻辑：[functions/_lib/proxy.js](D:\web\gpt-proxy\functions\_lib\proxy.js)
-- 认证逻辑：[functions/_lib/auth.js](D:\web\gpt-proxy\functions\_lib\auth.js)
-- 管理后台页面：[admin/index.html](D:\web\gpt-proxy\admin\index.html)
-- 后台脚本：[admin/app.js](D:\web\gpt-proxy\admin\app.js)
-- 数据库迁移：[migrations/0001_init.sql](D:\web\gpt-proxy\migrations\0001_init.sql)
-- 一键初始化脚本：[scripts/setup-template.mjs](D:\web\gpt-proxy\scripts\setup-template.mjs)
+- `admins`
+- `sessions`
+- `routes`
 
-## 仓库发布建议
+其中：
 
-如果你准备把它作为自己的模板仓库使用，建议：
+- 管理员密码使用哈希 + salt 存储
+- 会话只保存 token 的哈希，不保存明文 token
 
-1. 把这个仓库推到 GitHub
-2. 在 GitHub 中启用 `Use this template`
-3. 每次新项目都从模板新建仓库
-4. 新仓库拉下来后直接运行 `npm install` 和 `npm run setup -- --project <name>`
+## 部署方式
+
+这个仓库现在已经被整理成一套 **可复用的 Pages 项目模板**。  
+你可以用两种方式部署。
+
+### 方案 A：Cloudflare 控制台部署（不使用命令行）
+
+如果你不想碰命令行，可以直接走控制台：
+
+1. 把仓库推到 GitHub
+2. 在 Cloudflare Pages 里选择 **连接 Git 仓库**
+3. 选择这个仓库
+4. 构建配置里保持：
+   - 构建命令：留空
+   - 输出目录：`.`
+5. 创建一个 D1 数据库
+6. 在 Pages 项目设置里添加 D1 绑定：
+   - Binding name：`DB`
+7. 打开 `migrations/0001_init.sql`
+8. 把 SQL 内容复制到 Cloudflare D1 控制台执行一次
+9. 重新部署 Pages
+
+完成后，访问 `/admin` 初始化第一个管理员账户即可。
+
+### 方案 B：命令行一键初始化
+
+如果你使用 Wrangler，可以直接运行：
+
+```bash
+npm install
+npm run setup -- --project my-gateway
+```
+
+可选参数：
+
+```bash
+npm run setup -- --project my-gateway --database my-gateway-db
+```
+
+如果你只想创建 D1 并写回配置，先不部署：
+
+```bash
+npm run setup -- --project my-gateway --skip-deploy
+```
+
+这个脚本会做下面这些事：
+
+1. 检查 Wrangler 登录状态
+2. 创建 D1 数据库
+3. 回填 `wrangler.toml`
+4. 执行本地迁移
+5. 执行远端迁移
+6. 首次部署到 Cloudflare Pages
+
+脚本文件在：
+
+- `scripts/setup-template.mjs`
+
+## 本地开发
+
+安装依赖：
+
+```bash
+npm install
+```
+
+本地运行：
+
+```bash
+npm run dev
+```
+
+语法检查：
+
+```bash
+npm run check
+```
+
+手动部署：
+
+```bash
+npm run deploy -- --project-name my-gateway
+```
+
+## 项目结构
+
+```text
+admin/                    后台页面与前端脚本
+functions/                Pages Functions 入口
+functions/_lib/           代理、鉴权、D1、工具函数
+migrations/               D1 迁移文件
+scripts/setup-template.mjs
+wrangler.toml
+package.json
+```
+
+几个关键文件：
+
+- `functions/[[path]].js`：Pages Functions 主入口
+- `functions/_lib/proxy.js`：代理逻辑与协议补丁
+- `functions/_lib/auth.js`：管理员认证与会话
+- `admin/index.html`：后台页面
+- `admin/app.js`：后台交互逻辑
+- `migrations/0001_init.sql`：数据库初始化
+
+## 安全边界与限制
+
+这个项目适合做：
+
+- 常见 REST 接口中转
+- SSE / 流式响应透传
+- 包管理 / 镜像类 HTTP 请求中转
+- 个人域名统一入口
+
+这个项目不适合做：
+
+- 原始 TCP 转发
+- UDP 转发
+- WebSocket 以外的非 HTTP 协议直通
+- 多租户公网网关服务
+
+也就是说，它本质上还是一个 **基于 Cloudflare Pages Functions 的 HTTP 网关**，不是通用四层代理。
+
+## 我对这份模板的建议用法
+
+如果你准备长期维护它，我建议这样用：
+
+1. 把这个仓库作为模板仓库保留
+2. 每个新网关都从模板复制一份
+3. 每个实例使用独立的 Pages 项目和独立的 D1
+4. 管理后台只给自己用，不要做成公开注册系统
+
+这样最省心，也最符合它本来的定位。
+
+## 最后
+
+这份仓库不是为了“做一个看起来很全的代理平台”，而是为了把一件事情做顺手：
+
+**把常见上游服务统一收口，并且让后续维护尽量简单。**
+
+如果你正需要的也是这个目标，那这套模板应该刚好合适。

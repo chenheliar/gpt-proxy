@@ -24,22 +24,8 @@
           <span class="eyebrow">Universal Relay Gateway</span>
           <h1>路由管理后台</h1>
           <p class="muted">
-            保持与首页一致的简洁学术风格。你可以在这里登录、查看路由状态、编辑转发表，并在手机上完成日常维护。
+            在这里集中维护路由、查看当前状态，并完成新增、编辑、启停等日常操作；手机上也能顺畅管理。
           </p>
-        </div>
-        <div class="hero-aside">
-          <div class="hero-note">
-            <span>部署环境</span>
-            <strong>Cloudflare Pages + D1</strong>
-          </div>
-          <div class="hero-note">
-            <span>管理入口</span>
-            <strong>/admin</strong>
-          </div>
-          <div class="hero-note">
-            <span>支持协议</span>
-            <strong>OpenAI / Gemini / npm / Docker</strong>
-          </div>
         </div>
       </header>
 
@@ -50,7 +36,7 @@
           <div class="toolbar-copy">
             <span class="eyebrow">Admin</span>
             <h2>路由总览</h2>
-            <p class="muted">采用表格集中管理；新增和编辑在弹出表单中完成，移动端会自动改成卡片式表格。</p>
+            <p class="muted">所有路由统一在这里管理；新增和编辑通过弹出表单完成，手机上会自动切换成更易读的卡片式布局。</p>
           </div>
           <div class="toolbar-actions">
             <div class="user-chip" id="session-user" aria-live="polite">未登录</div>
@@ -67,14 +53,14 @@
             <div>
               <span class="eyebrow">Routes</span>
               <h3>已配置路由</h3>
-              <p class="muted compact">优先展示最关键的信息：挂载路径、目标地址、转发方式、状态与操作。</p>
+              <p class="muted compact">这里保留最常用的信息：挂载路径、目标地址、转发方式、当前状态，以及常见操作入口。</p>
             </div>
-            <p class="table-note">长文本会自动换行；手机上会折叠为分段信息块，不会把页面撑出屏幕。</p>
+            <p class="table-note">较长的路径或地址会自动换行；在手机上会整理成分段信息块，阅读和操作都会更轻松。</p>
           </div>
 
           <div id="routes-empty" class="empty-state hidden">
             <strong>还没有任何路由</strong>
-            <p>可以先从 OpenAI、Gemini、npm 或 Docker 预设开始。</p>
+            <p>可以先使用下方预设快速开始，后续再按需要慢慢调整。</p>
             <button class="button primary" id="empty-create-button" type="button">现在添加</button>
           </div>
 
@@ -104,7 +90,7 @@
           <div>
             <span class="eyebrow">Editor</span>
             <h3 id="modal-title">添加新路由</h3>
-            <p class="muted compact">默认只替换请求地址；原始请求头、请求体与流式响应都会保持透传。</p>
+            <p class="muted compact">默认只改写目标地址；原始请求头、请求体和流式响应会尽量保持原样透传。</p>
           </div>
           <button id="close-modal-button" class="icon-button" type="button" aria-label="关闭弹窗">×</button>
         </div>
@@ -181,7 +167,7 @@
                 spellcheck="false"
                 placeholder="[]"
               ></textarea>
-              <small class="field-note">仅在明确需要时填写，例如 <code>["origin"]</code>。</small>
+              <small class="field-note">只有在你确定需要时再填写，例如 <code>["origin"]</code>。</small>
             </label>
           </div>
 
@@ -203,7 +189,7 @@
 
           <div class="modal-actions">
             <p id="form-message" class="helper-text" aria-live="polite">
-              支持中文、日文、韩文、emoji 和长路径；保存失败时会保留你已输入的内容。
+              支持中文、日文、韩文、emoji 和长路径；如果保存失败，当前已填写的内容会继续保留。
             </p>
             <div class="action-row">
               <button id="cancel-modal-button" class="button" type="button">取消</button>
