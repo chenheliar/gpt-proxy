@@ -9,7 +9,8 @@ export async function maybeHandleProxy(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const routes = await getEnabledRoutes(env.DB);
-  const route = routes.find((item) => isRouteMatch(url.pathname, item.mount_path));
+  const match = resolveRouteMatch(routes, url.pathname);
+  const route = match?.route;
 
   if (!route) {
     return null;
@@ -25,7 +26,7 @@ export async function maybeHandleProxy(context) {
   }
 
   try {
-    const upstream = buildTargetUrl(url, route);
+    const upstream = buildTargetUrl(url, route, match.requestBasePath);
     const upstreamRequest = new Request(upstream.toString(), {
       method: request.method,
       headers: rewriteRequestHeaders(request.headers, route, url),
@@ -34,7 +35,7 @@ export async function maybeHandleProxy(context) {
     });
 
     const upstreamResponse = await fetch(upstreamRequest);
-    return buildProxyResponse(upstreamResponse, route, url, upstream, request.method);
+    return buildProxyResponse(upstreamResponse, route, url, upstream, request.method, match.requestBasePath);
   } catch (error) {
     return text(`Gateway upstream error: ${error.message || "unknown error"}`, {
       status: 502,
@@ -43,23 +44,47 @@ export async function maybeHandleProxy(context) {
   }
 }
 
-function buildTargetUrl(incomingUrl, route) {
-  const dockerAuthUrl = buildDockerAuthUrl(incomingUrl, route);
+function resolveRouteMatch(routes, pathname) {
+  const direct = routes.find((item) => isRouteMatch(pathname, item.mount_path));
+  if (direct) {
+    return {
+      route: direct,
+      requestBasePath: direct.mount_path,
+    };
+  }
+
+  if (isDockerRegistryRootPath(pathname)) {
+    const dockerRoute = routes.find((item) => isDockerRegistryTarget(item));
+    if (dockerRoute) {
+      return {
+        route: dockerRoute,
+        requestBasePath: "",
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildTargetUrl(incomingUrl, route, requestBasePath) {
+  const dockerAuthUrl = buildDockerAuthUrl(incomingUrl, route, requestBasePath);
   if (dockerAuthUrl) {
     return dockerAuthUrl;
   }
 
   const target = new URL(route.target_base);
-  const remainder = route.strip_prefix
-    ? incomingUrl.pathname.slice(route.mount_path.length) || "/"
-    : incomingUrl.pathname;
+  const normalizedBasePath = requestBasePath || "";
+  const remainder =
+    route.strip_prefix && normalizedBasePath
+      ? incomingUrl.pathname.slice(normalizedBasePath.length) || "/"
+      : incomingUrl.pathname;
   target.pathname = joinPaths(target.pathname || "/", remainder || "/");
   target.search = incomingUrl.search;
   return target;
 }
 
-async function buildProxyResponse(upstreamResponse, route, incomingUrl, upstreamUrl, requestMethod) {
-  const headers = rewriteResponseHeaders(upstreamResponse.headers, route, incomingUrl, upstreamUrl);
+async function buildProxyResponse(upstreamResponse, route, incomingUrl, upstreamUrl, requestMethod, requestBasePath) {
+  const headers = rewriteResponseHeaders(upstreamResponse.headers, route, incomingUrl, upstreamUrl, requestBasePath);
 
   if (shouldRewriteNpmMetadata(route, upstreamResponse, requestMethod)) {
     const body = await upstreamResponse.text();
@@ -100,20 +125,20 @@ function rewriteRequestHeaders(sourceHeaders, route, incomingUrl) {
   return headers;
 }
 
-function rewriteResponseHeaders(sourceHeaders, route, incomingUrl, upstreamUrl) {
+function rewriteResponseHeaders(sourceHeaders, route, incomingUrl, upstreamUrl, requestBasePath) {
   const headers = new Headers(sourceHeaders);
   headers.set("x-gateway-route", route.mount_path);
   headers.set("cache-control", headers.get("cache-control") || "no-store");
 
   const location = headers.get("location");
   if (location) {
-    const rewritten = rewriteLocation(location, route, incomingUrl, upstreamUrl);
+    const rewritten = rewriteLocation(location, route, incomingUrl, upstreamUrl, requestBasePath);
     if (rewritten) headers.set("location", rewritten);
   }
 
   const authenticate = headers.get("www-authenticate");
   if (authenticate && isDockerRegistryTarget(route)) {
-    headers.set("www-authenticate", rewriteDockerAuthenticateHeader(authenticate, route, incomingUrl));
+    headers.set("www-authenticate", rewriteDockerAuthenticateHeader(authenticate, route, incomingUrl, requestBasePath));
   }
 
   for (const [key, value] of Object.entries(withCors())) {
@@ -122,7 +147,7 @@ function rewriteResponseHeaders(sourceHeaders, route, incomingUrl, upstreamUrl) 
   return headers;
 }
 
-function rewriteLocation(location, route, incomingUrl, upstreamUrl) {
+function rewriteLocation(location, route, incomingUrl, upstreamUrl, requestBasePath) {
   try {
     const resolved = new URL(location, upstreamUrl);
     if (resolved.origin !== upstreamUrl.origin) {
@@ -131,7 +156,7 @@ function rewriteLocation(location, route, incomingUrl, upstreamUrl) {
     const basePath = new URL(route.target_base).pathname.replace(/\/$/, "");
     const suffix = resolved.pathname.startsWith(basePath) ? resolved.pathname.slice(basePath.length) : resolved.pathname;
     const next = new URL(incomingUrl.toString());
-    next.pathname = route.strip_prefix ? joinPaths(route.mount_path, suffix || "/") : resolved.pathname;
+    next.pathname = route.strip_prefix ? joinPaths(requestBasePath || "/", suffix || "/") : resolved.pathname;
     next.search = resolved.search;
     return next.toString();
   } catch {
@@ -139,8 +164,8 @@ function rewriteLocation(location, route, incomingUrl, upstreamUrl) {
   }
 }
 
-function buildDockerAuthUrl(incomingUrl, route) {
-  const internalPath = joinPaths(route.mount_path, INTERNAL_DOCKER_AUTH_PATH);
+function buildDockerAuthUrl(incomingUrl, route, requestBasePath) {
+  const internalPath = joinPaths(requestBasePath || "/", INTERNAL_DOCKER_AUTH_PATH);
   if (incomingUrl.pathname !== internalPath) {
     return null;
   }
@@ -161,10 +186,10 @@ function buildDockerAuthUrl(incomingUrl, route) {
   return target;
 }
 
-function rewriteDockerAuthenticateHeader(value, route, incomingUrl) {
+function rewriteDockerAuthenticateHeader(value, route, incomingUrl, requestBasePath) {
   return value.replace(/realm="([^"]+)"/i, (_match, realm) => {
     const localRealm = new URL(incomingUrl.origin);
-    localRealm.pathname = joinPaths(route.mount_path, INTERNAL_DOCKER_AUTH_PATH);
+    localRealm.pathname = joinPaths(requestBasePath || "/", INTERNAL_DOCKER_AUTH_PATH);
     localRealm.searchParams.set(INTERNAL_REALM_PARAM, normalizeDockerRealm(realm, route));
     return `realm="${localRealm.toString()}"`;
   });
@@ -255,6 +280,15 @@ function isNpmRegistryTarget(route) {
 function isDockerRegistryTarget(route) {
   const host = new URL(route.target_base).hostname;
   return host === "registry-1.docker.io" || host === "registry.docker.io";
+}
+
+function isDockerRegistryRootPath(pathname) {
+  return (
+    pathname === "/v2" ||
+    pathname.startsWith("/v2/") ||
+    pathname === INTERNAL_DOCKER_AUTH_PATH ||
+    pathname.startsWith(`${INTERNAL_DOCKER_AUTH_PATH}/`)
+  );
 }
 
 function defaultDockerRealm(route) {

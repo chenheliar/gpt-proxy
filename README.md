@@ -59,7 +59,7 @@ https://your-domain.example/gemini/v1beta/models/...
 
 - **OpenAI / Gemini：** 支持流式透传，不要求把 API Key 写在路由里
 - **npm Registry：** 自动重写元数据中的 tarball 下载地址，避免后续请求绕过网关
-- **Docker Registry V2：** 自动重写 `WWW-Authenticate` 里的 `realm`，并通过网关继续完成认证流程
+- **Docker Registry V2：** 自动重写 `WWW-Authenticate` 里的 `realm`，并通过网关继续完成认证流程；同时支持 Docker CLI 直接把当前域名当作 registry 主机使用
 
 ### 后台能力
 
@@ -116,6 +116,14 @@ https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:gene
 - Docker → `https://registry-1.docker.io`
 
 这些预设只是便捷填充，后续仍可按需修改。
+
+> Docker 需要额外说明：  
+> 虽然后台中的 Docker 路由仍然以 `/docker` 作为配置入口，但系统会自动把根路径 `/v2/*` 识别为 Docker Registry 请求。  
+> 也就是说，实际使用 Docker CLI 时，应直接把你的站点域名当作 registry 主机，例如：
+>
+> ```text
+> docker pull proxy.heliar.top/library/nginx:alpine
+> ```
 
 ---
 
@@ -378,6 +386,36 @@ https://registry-1.docker.io
 
 系统只对 Docker Registry V2 场景执行 `WWW-Authenticate` 的 `realm` 改写。
 
+### 5. Docker 镜像名提示 `invalid reference format`
+
+Docker 镜像名里不能写：
+
+```text
+https://proxy.heliar.top/docker/library/nginx:alpine
+```
+
+也不能把 `/docker` 当成 registry 地址的一部分。
+
+正确写法是直接使用主机名：
+
+```text
+proxy.heliar.top/library/nginx:alpine
+```
+
+如果你的 Docker 路由已启用并指向：
+
+```text
+https://registry-1.docker.io
+```
+
+那么 Docker CLI 会自动请求：
+
+```text
+https://proxy.heliar.top/v2/...
+```
+
+项目现在已经支持把这类根路径请求自动接到 Docker 上游。
+
 ---
 
 ## 使用建议
@@ -394,4 +432,3 @@ https://registry-1.docker.io
 **把常见上游统一收口，并把维护成本压低到足够简单。**
 
 那么这套模板就是为这件事写的。
-
